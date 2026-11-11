@@ -1,0 +1,41 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+publish/
+
+# Visual Studio user/cache files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Build artifacts and logs
+*.pdb
+*.ilk
+*.obj
+*.log
+*.binlog
+*.cache
+*.tlog
+
+# WiX installer output
+*.wixobj
+*.wixpdb
+*.msi
+
+# NuGet: keep the vendored packages/ folder, ignore generated files
+!ExpressProfiler/packages/**
+*.nupkg.metadata
+project.assets.json
+
+# Tools / OS
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
