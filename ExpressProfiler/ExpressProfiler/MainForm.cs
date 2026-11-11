@@ -22,7 +22,7 @@ namespace ExpressProfiler
 {
     public partial class MainForm : Form
     {
-        internal const string versionString = "Express Profiler v2.2";
+        internal const string versionString = "Express Profiler v2.3";
 
         private class PerfInfo
         {
@@ -1448,6 +1448,10 @@ namespace ExpressProfiler
 
 			StringBuilder aboutMsg = new StringBuilder();
 			aboutMsg.AppendLine(versionString + "\nhttps://expressprofiler.codeplex.com/");
+			aboutMsg.AppendLine();
+			aboutMsg.AppendLine("Recent updates:");
+			aboutMsg.AppendLine("    - High-DPI support: crisp fonts on scaled displays (Windows 10/11)");
+			aboutMsg.AppendLine("    - Toolbar and menu icons scale with display DPI");
 			aboutMsg.AppendLine();
 			aboutMsg.AppendLine("Filter Icon Downloaded From:");
 			aboutMsg.AppendLine("    http://www.softicons.com/toolbar-icons/iconza-light-blue-icons-by-turbomilk/filter-icon");
