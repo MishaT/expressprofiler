@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -74,6 +75,7 @@ namespace ExpressProfiler
         public MainForm()
         {
             InitializeComponent();
+            ScaleToolStripImages();
             tbStart.DefaultItem = tbRun;
             Text = versionString;
             edPassword.TextBox.PasswordChar = '*';
@@ -88,6 +90,55 @@ namespace ExpressProfiler
             tbAuth.SelectedIndex = String.IsNullOrEmpty(m_username)?0:1;
             if(m_autostart) RunProfiling(false);
             UpdateButtons();
+        }
+
+        // WinForms on .NET 3.5 scales fonts and layout with DPI but not toolbar/menu icons,
+        // so enlarge the 16x16 images to match the current display scaling.
+        private void ScaleToolStripImages()
+        {
+            float scale;
+            using (Graphics g = CreateGraphics())
+            {
+                scale = g.DpiX / 96f;
+            }
+            if (scale <= 1.0f) return;
+            int side = (int)Math.Round(16 * scale);
+            Size size = new Size(side, side);
+            foreach (ToolStrip strip in new ToolStrip[] { toolStrip1, menuStrip1, contextMenuStrip1, statusStrip1 })
+            {
+                strip.ImageScalingSize = size;
+                // ToolStrip on .NET 3.5 only shrinks images to ImageScalingSize, never enlarges them,
+                // so pre-scale any smaller bitmaps ourselves.
+                ScaleItemImages(strip.Items, side);
+            }
+        }
+
+        private static void ScaleItemImages(ToolStripItemCollection items, int side)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                if (item.Image != null && item.Image.Width < side)
+                {
+                    Bitmap src = new Bitmap(item.Image);
+                    Color key = item.ImageTransparentColor;
+                    if (!key.IsEmpty && key.A != 0) src.MakeTransparent(key);
+
+                    Bitmap dst = new Bitmap(side, side);
+                    using (Graphics g = Graphics.FromImage(dst))
+                    using (System.Drawing.Imaging.ImageAttributes attr = new System.Drawing.Imaging.ImageAttributes())
+                    {
+                        attr.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                        g.DrawImage(src, new Rectangle(0, 0, side, side), 0, 0, src.Width, src.Height, GraphicsUnit.Pixel, attr);
+                    }
+                    src.Dispose();
+                    item.ImageTransparentColor = Color.Empty;
+                    item.Image = dst;
+                }
+                ToolStripDropDownItem dropDown = item as ToolStripDropDownItem;
+                if (dropDown != null) ScaleItemImages(dropDown.DropDownItems, side);
+            }
         }
 
         private TraceProperties.TraceSettings GetDefaultSettings()
