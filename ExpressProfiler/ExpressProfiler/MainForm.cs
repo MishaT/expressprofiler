@@ -75,7 +75,8 @@ namespace ExpressProfiler
         public MainForm()
         {
             InitializeComponent();
-            ScaleToolStripImages();
+            ScaleToolStripImages(DeviceDpi);
+            mnAbout.ToolTipText = "About (F1)";
             tbStart.DefaultItem = tbRun;
             Text = versionString;
             edPassword.TextBox.PasswordChar = '*';
@@ -92,53 +93,78 @@ namespace ExpressProfiler
             UpdateButtons();
         }
 
-        // WinForms on .NET 3.5 scales fonts and layout with DPI but not toolbar/menu icons,
-        // so enlarge the 16x16 images to match the current display scaling.
-        private void ScaleToolStripImages()
+        // Original (unscaled) toolbar/menu images, so they can be rescaled from the source
+        // whenever the window moves to a monitor with a different DPI.
+        private readonly Dictionary<ToolStripItem, Image> m_originalImages = new Dictionary<ToolStripItem, Image>();
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            float scale;
-            using (Graphics g = CreateGraphics())
+            if (keyData == Keys.F1)
             {
-                scale = g.DpiX / 96f;
+                mnAbout_Click(this, EventArgs.Empty);
+                return true;
             }
-            if (scale <= 1.0f) return;
-            int side = (int)Math.Round(16 * scale);
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        protected override void OnDpiChanged(DpiChangedEventArgs e)
+        {
+            base.OnDpiChanged(e);
+            ScaleToolStripImages(e.DeviceDpiNew);
+        }
+
+        // WinForms scales fonts and layout with DPI, but ToolStrip only shrinks images to
+        // ImageScalingSize, never enlarges them, so pre-scale the 16x16 bitmaps ourselves.
+        private void ScaleToolStripImages(int dpi)
+        {
+            int side = Math.Max(16, (int)Math.Round(16 * dpi / 96.0));
             Size size = new Size(side, side);
             foreach (ToolStrip strip in new ToolStrip[] { toolStrip1, menuStrip1, contextMenuStrip1, statusStrip1 })
             {
                 strip.ImageScalingSize = size;
-                // ToolStrip on .NET 3.5 only shrinks images to ImageScalingSize, never enlarges them,
-                // so pre-scale any smaller bitmaps ourselves.
                 ScaleItemImages(strip.Items, side);
             }
         }
 
-        private static void ScaleItemImages(ToolStripItemCollection items, int side)
+        private void ScaleItemImages(ToolStripItemCollection items, int side)
         {
             foreach (ToolStripItem item in items)
             {
-                if (item.Image != null && item.Image.Width < side)
+                if (item.Image != null && !m_originalImages.ContainsKey(item))
                 {
-                    Bitmap src = new Bitmap(item.Image);
+                    // Bake the designer's transparent color into the original once.
+                    Bitmap original = new Bitmap(item.Image);
                     Color key = item.ImageTransparentColor;
-                    if (!key.IsEmpty && key.A != 0) src.MakeTransparent(key);
-
-                    Bitmap dst = new Bitmap(side, side);
-                    using (Graphics g = Graphics.FromImage(dst))
-                    using (System.Drawing.Imaging.ImageAttributes attr = new System.Drawing.Imaging.ImageAttributes())
-                    {
-                        attr.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
-                        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-                        g.DrawImage(src, new Rectangle(0, 0, side, side), 0, 0, src.Width, src.Height, GraphicsUnit.Pixel, attr);
-                    }
-                    src.Dispose();
+                    if (!key.IsEmpty && key.A != 0) original.MakeTransparent(key);
                     item.ImageTransparentColor = Color.Empty;
-                    item.Image = dst;
+                    m_originalImages[item] = original;
                 }
+
+                Image src;
+                if (m_originalImages.TryGetValue(item, out src))
+                {
+                    Image old = item.Image;
+                    item.Image = src.Width < side ? ResizeImage(src, side) : src;
+                    if (old != null && old != src && !m_originalImages.ContainsValue(old)) old.Dispose();
+                }
+
                 ToolStripDropDownItem dropDown = item as ToolStripDropDownItem;
                 if (dropDown != null) ScaleItemImages(dropDown.DropDownItems, side);
             }
+        }
+
+        private static Bitmap ResizeImage(Image src, int side)
+        {
+            Bitmap dst = new Bitmap(side, side);
+            using (Graphics g = Graphics.FromImage(dst))
+            using (System.Drawing.Imaging.ImageAttributes attr = new System.Drawing.Imaging.ImageAttributes())
+            {
+                attr.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                g.DrawImage(src, new Rectangle(0, 0, side, side), 0, 0, src.Width, src.Height, GraphicsUnit.Pixel, attr);
+            }
+            return dst;
         }
 
         private TraceProperties.TraceSettings GetDefaultSettings()
@@ -1450,8 +1476,10 @@ namespace ExpressProfiler
 			aboutMsg.AppendLine(versionString + "\nhttps://expressprofiler.codeplex.com/");
 			aboutMsg.AppendLine();
 			aboutMsg.AppendLine("Recent updates:");
-			aboutMsg.AppendLine("    - High-DPI support: crisp fonts on scaled displays (Windows 10/11)");
-			aboutMsg.AppendLine("    - Toolbar and menu icons scale with display DPI");
+			aboutMsg.AppendLine("    - Upgraded to .NET Framework 4.8");
+			aboutMsg.AppendLine("    - High-DPI support: crisp text on scaled displays");
+			aboutMsg.AppendLine("    - Icons scale with display and per-monitor DPI");
+			aboutMsg.AppendLine("    - Press F1 to open this About window");
 			aboutMsg.AppendLine();
 			aboutMsg.AppendLine("Filter Icon Downloaded From:");
 			aboutMsg.AppendLine("    http://www.softicons.com/toolbar-icons/iconza-light-blue-icons-by-turbomilk/filter-icon");
