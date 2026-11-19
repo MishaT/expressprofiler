@@ -10,6 +10,7 @@ namespace ExpressProfiler
         public FindForm(MainForm f)
         {
             InitializeComponent();
+            DpiUtil.FixFontOnLoad(this);
 
             m_mainForm = f;
 

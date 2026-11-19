@@ -371,6 +371,7 @@ namespace ExpressProfiler
         public TraceProperties()
         {
             InitializeComponent();
+            DpiUtil.FixFontOnLoad(this);
         }
 
         public void SetSettings(TraceSettings st)

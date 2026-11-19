@@ -75,7 +75,8 @@ namespace ExpressProfiler
         public MainForm()
         {
             InitializeComponent();
-            ScaleToolStripImages(DeviceDpi);
+            m_designFont = DpiUtil.DesignFont;
+            m_textDesignFont = reTextData.Font;
             mnAbout.ToolTipText = "About (F1)";
             tbStart.DefaultItem = tbRun;
             Text = versionString;
@@ -107,10 +108,51 @@ namespace ExpressProfiler
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
+        // Design-time fonts, and the DPI the grid's column widths are currently sized for.
+        private readonly Font m_designFont;
+        private readonly Font m_textDesignFont;
+        private int m_columnDpi = 96;
+
         protected override void OnDpiChanged(DpiChangedEventArgs e)
         {
             base.OnDpiChanged(e);
-            ScaleToolStripImages(e.DeviceDpiNew);
+            ApplyDpi(e.DeviceDpiNew);
+        }
+
+        // Called once the window exists (its real DPI is known only then) and on every DPI change.
+        private void ApplyDpi(int dpi)
+        {
+            ScaleToolStripImages(dpi);
+            // Pixel-size fonts for the grid and SQL pane (ToolStrips scale themselves).
+            DpiUtil.ApplyFont(lvEvents, m_designFont, dpi);
+            DpiUtil.ApplyFont(reTextData, m_textDesignFont, dpi);
+            ApplyTextZoom();
+            ScaleGridColumns(dpi);
+        }
+
+        private void ScaleGridColumns(int dpi)
+        {
+            if (dpi == m_columnDpi) return;
+            lvEvents.BeginUpdate();
+            try
+            {
+                foreach (ColumnHeader c in lvEvents.Columns)
+                    c.Width = (int)Math.Round(c.Width * (double)dpi / m_columnDpi);
+            }
+            finally
+            {
+                lvEvents.EndUpdate();
+            }
+            m_columnDpi = dpi;
+        }
+
+        // The SQL pane is filled with RTF, whose point sizes render at the system DPI;
+        // zoom it so it matches the window's DPI. Must be reapplied after each RTF load.
+        private void ApplyTextZoom()
+        {
+            float zoom = DpiUtil.FontCorrection(DeviceDpi);
+            reTextData.ZoomFactor = 1f; // force a reset: WinForms skips "unchanged" values
+            if (Math.Abs(zoom - 1f) > 0.01f) reTextData.ZoomFactor = zoom;
         }
 
         // WinForms scales fonts and layout with DPI, but ToolStrip only shrinks images to
@@ -433,7 +475,7 @@ namespace ExpressProfiler
                 lvEvents.Columns.Clear();
                 foreach (PerfColumn pc in m_columns)
                 {
-                    var l = lvEvents.Columns.Add(pc.Caption, pc.Width);
+                    var l = lvEvents.Columns.Add(pc.Caption, (int)Math.Round(pc.Width * m_columnDpi / 96.0));
                     l.TextAlign = pc.Alignment;
                 }
             }
@@ -908,6 +950,7 @@ namespace ExpressProfiler
                 }
             }
             m_Lex.FillRichEdit(reTextData, sb.ToString());
+            ApplyTextZoom();
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -979,7 +1022,7 @@ namespace ExpressProfiler
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-
+            ApplyDpi(DeviceDpi);
         }
 
 
